@@ -38,12 +38,12 @@ async def sender(ctx, *args, **kwargs):
         return None
 
 @bot.command(name="recipe")
-async def recipe_by_name(ctx, *, dish_name:str):
+async def recipe_by_name(ctx, *, dish_name:str, number=1):
     url = "https://api.spoonacular.com/recipes/complexSearch"
 
     first_params = {
         "query": dish_name,
-        "number": 1,
+        "number": number,
         "apiKey": API_KEY
     }
     first_response = requests.get(url, params=first_params)
@@ -99,6 +99,59 @@ async def recipe_by_name(ctx, *, dish_name:str):
     msg = await sender(ctx, embed=embed)
     if msg:
         await msg.add_reaction("❤️")
+
+# dodać jeszcze szukanie losowych na konkretną porę dnia albo określona kuchnia (include tags),
+# chyba będzie lepiej to zrobić przez recipe a nie random bo jest więcej możliwości wyszukiwania
+
+@bot.command(name="ingredients")
+async def search_by_ingredients(ctx, *, ingredients:str):
+    parts = ingredients.rsplit(" ", 1)
+    try:
+        number=int(parts[1])
+        ingredients = parts[0]
+    except IndexError:
+        number=1
+        ingredients=ingredients
+
+    url = "https://api.spoonacular.com/recipes/findByIngredients"
+
+    params = {
+        "ingredients": ingredients,
+        "number": number,
+        "ranking":2,
+        "apiKey": API_KEY,
+    }
+
+    response = requests.get(url, params=params)
+
+    if response.status_code != 200:
+        await ctx.send("Failed to get recipes 😕")
+        return
+
+    data = response.json()
+
+    if not data:
+        await ctx.send("No recipes found")
+        return
+
+    for recipe in data:
+        title = recipe["title"]
+        image_url = recipe["image"]
+        missed_ingredients = [i["name"] for i in recipe.get("missedIngredients", [])]
+
+        embed = discord.Embed(title=title, colour=discord.Colour.blurple())
+        embed.add_field(name="Missed Ingredients", value=missed_ingredients, inline=False)
+        embed.set_image(url=image_url)
+
+        msg = await sender(ctx, embed=embed)
+        if msg:
+            await msg.add_reaction("❤️")
+
+    logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
+
+#zrobić jeszcze jednego requesta po id każdego przepisu żeby zaciągnąć o nich więcej informacji
+#dodać opisy i source przepisów
+#więcej informacji o nich podać
 
 
 @bot.command(name="random")
@@ -206,12 +259,48 @@ async def on_raw_reaction_remove(payload):
 async def favorites(ctx):
     favs = user_favorites.get(ctx.author.id, [])
     if not favs:
-        await ctx.send("You don't have any favorites yet.❤️")
+        await ctx.send("You don't have any favorite recipes yet.❤️")
         return
 
     message = "📌 Your favorite recipes:\n" + "\n".join(
         [f"https://discord.com/channels/{ctx.guild.id}/{ctx.channel.id}/{mid}" for mid in favs])
     await ctx.send(message)
+
+@bot.command(name="helpme")
+async def help_command(ctx):
+    embed = discord.Embed(
+        title="🍳 Help — Available Commands",
+        description="Here's a list of commands you can use with this recipe bot:",
+        color=discord.Color.orange()
+    )
+
+    embed.add_field(
+        name="`!recipe <name>`",
+        value="🔍 Searches for a recipe by name and shows a random matching result.\nExample: `!recipe pasta`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!random`",
+        value="🎲 Shows a completely random recipe.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!favorites`",
+        value="❤️ Displays your list of favorite recipes that you’ve added using the heart reaction.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`❤️ Reaction`",
+        value="🫶 Add or remove a recipe from your favorites by clicking the heart emoji under a recipe message.",
+        inline=False
+    )
+
+    embed.set_footer(text="Bon appétit! Made with Spoonacular API 🍽️")
+
+    await ctx.send(embed=embed)
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
