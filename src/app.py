@@ -137,10 +137,33 @@ async def search_by_ingredients(ctx, *, ingredients:str):
     for recipe in data:
         title = recipe["title"]
         image_url = recipe["image"]
-        missed_ingredients = [i["name"] for i in recipe.get("missedIngredients", [])]
+        missed_ingredients = ", ".join([i["name"] for i in recipe.get("missedIngredients", [])])
+        recipe_id=recipe["id"]
 
-        embed = discord.Embed(title=title, colour=discord.Colour.blurple())
+        #2 request
+        info_url=f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+
+        info_params = {
+            "apiKey": API_KEY
+        }
+        info_response = requests.get(info_url, params=info_params)
+
+        if info_response.status_code != 200:
+            continue
+
+        info = info_response.json()
+
+        source_url = info.get("sourceUrl", "")
+        servings = info.get("servings", 0)
+        ready_in = info.get("readyInMinutes",0)
+
+        embed = discord.Embed(
+            title=title,
+            url=source_url,
+            colour=discord.Colour.blurple())
         embed.add_field(name="Missed Ingredients", value=missed_ingredients, inline=False)
+        embed.add_field(name="Servings", value=servings, inline=True)
+        embed.add_field(name="Ready In", value=ready_in, inline=True)
         embed.set_image(url=image_url)
 
         msg = await sender(ctx, embed=embed)
@@ -149,9 +172,7 @@ async def search_by_ingredients(ctx, *, ingredients:str):
 
     logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
 
-#zrobić jeszcze jednego requesta po id każdego przepisu żeby zaciągnąć o nich więcej informacji
 #dodać opisy i source przepisów
-#więcej informacji o nich podać
 
 
 @bot.command(name="random")
