@@ -38,7 +38,17 @@ async def sender(ctx, *args, **kwargs):
         return None
 
 @bot.command(name="recipe")
-async def recipe_by_name(ctx, *, dish_name:str, number=1):
+async def recipe_by_name(ctx, *, args:str):
+    #zobaczyć dlaczego się błędy robią jak nie poda się w query liczby przepisów
+    #albo wywalić całkowicie ta liczbe przepisów do wyświetlenia
+    parts = args.rsplit(" ", 1)
+    try:
+        number = int(parts[1])
+        dish_name = parts[0]
+    except IndexError:
+        number = 1
+        dish_name = parts[0]
+
     url = "https://api.spoonacular.com/recipes/complexSearch"
 
     first_params = {
@@ -57,12 +67,11 @@ async def recipe_by_name(ctx, *, dish_name:str, number=1):
     if not first_results:
         await ctx.send(f"Cannot find recipe for: **{dish_name}**")
         return
-    # else:
-    #     await ctx.send("We got smth")
+
     params = {
         "query": dish_name,
         "offset": rand_result,
-        "number": 1,
+        "number": number,
         "addRecipeInformation": True,
         "apiKey": API_KEY,
     }
@@ -71,34 +80,69 @@ async def recipe_by_name(ctx, *, dish_name:str, number=1):
 
     if response.status_code != 200:
         await ctx.send("Failed to get recipe 😕")
-        return
+
 
     data = response.json()
     results = data.get("results")
 
-    recipe = results[0]
-    title = recipe.get("title", "Unknown recipe")
-    image_url = recipe.get("image", "")
-    source = recipe.get("sourceUrl", "")
+    for recipe in results:
+        title = recipe.get("title", "Unknown recipe")
+        image_url = recipe.get("image", "")
+        source = recipe.get("sourceUrl", "")
+        recipe_id = recipe.get("id")
 
-    embed = discord.Embed(
-        title=title,
-        url=source,
-        colour=discord.Colour.blurple()
-    )
-    #Tu trzeba będzie wyświetlać:
-    # składniki
-    # porcje
-    if image_url:
-        embed.set_image(url=image_url)
+        embed = discord.Embed(
+            title=title,
+            url=source,
+            colour=discord.Colour.blurple()
+        )
+        #Tu trzeba będzie wyświetlać:
+        # porcje
+        if image_url:
+            embed.set_image(url=image_url)
+
+        #2 request
+        instructions_info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+
+        instructions_params={
+            "apiKey": API_KEY,
+
+        }
+        instructions_response = requests.get(instructions_info_url, params=instructions_params)
+        second_result = instructions_response.json()
+        instructions_raw = second_result.get("instructions", "")
+
+        #dodać do cleanera robienie instrukcji w punktach i żeby po kropce zaczynał nowy punkt
+        cleaner = HTMLCleaner()
+        instructions = cleaner.clean(instructions_raw)
+
+        servings = second_result.get("servings", 0)
+        #poprawić to na ogólny czas przygotowania bo nie podają w przepisach podzielonego na gotowanie itd.
+        cooking_time = second_result.get("cookingMinutes", 0)
+        preparation_time = second_result.get("preparationMinutes", 0)
+
+        embed.add_field(name="🍽️ Servings", value=servings, inline=True)
+        embed.add_field(name="⏱️ Preparation time", value=preparation_time, inline=True)
+        embed.add_field(name="⏱️ Cooking time", value=cooking_time, inline=True)
+
+        ingredients = second_result.get("extendedIngredients", [])
+
+        ingredient_list = []
+        for item in ingredients:
+            name = item.get("name", "unknown")
+            amount = item.get("amount", 0)
+            unit = item.get("unit", "")
+            ingredient_list.append(f"• {amount} {unit} {name}".strip())
+
+        formatted_ingredients = "\n".join(ingredient_list)
+
+        msg = await sender(ctx, embed=embed)
+        if msg:
+            await msg.add_reaction("❤️")
+        await ctx.send(f"📋 **Ingredients:**\n{formatted_ingredients}\n")
+        await ctx.send(f"\n📖 **Instructions for {title}:**\n{instructions}")
 
     logging.info(f"Command '!recipe' was called with argument: {dish_name}.")
-
-    #await sender(ctx, embed=embed)
-
-    msg = await sender(ctx, embed=embed)
-    if msg:
-        await msg.add_reaction("❤️")
 
 # dodać jeszcze szukanie losowych na konkretną porę dnia albo określona kuchnia (include tags),
 # chyba będzie lepiej to zrobić przez recipe a nie random bo jest więcej możliwości wyszukiwania
@@ -160,10 +204,11 @@ async def search_by_ingredients(ctx, *, ingredients:str):
         embed = discord.Embed(
             title=title,
             url=source_url,
-            colour=discord.Colour.blurple())
-        embed.add_field(name="Missed Ingredients", value=missed_ingredients, inline=False)
-        embed.add_field(name="Servings", value=servings, inline=True)
-        embed.add_field(name="Ready In", value=ready_in, inline=True)
+            colour=discord.Colour.blurple()
+        )
+        embed.add_field(name="🛒 Missed Ingredients", value=missed_ingredients, inline=False)
+        embed.add_field(name="🍽️ Servings", value=servings, inline=True)
+        embed.add_field(name="⏱️ Ready In", value=ready_in, inline=True)
         embed.set_image(url=image_url)
 
         msg = await sender(ctx, embed=embed)
@@ -172,70 +217,79 @@ async def search_by_ingredients(ctx, *, ingredients:str):
 
     logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
 
-#dodać opisy i source przepisów
-
+#Tu trzeba jeszcze zrobić coś aby te przepisy losowo się szukały, bo jak wyśweitlamy po 1 to ciąglem pokazuje ten sam przepis
 
 @bot.command(name="random")
-async def random_recipe(ctx):
-    response = requests.get(f"https://api.spoonacular.com/recipes/random?apiKey={API_KEY}")
+async def random_recipe(ctx, number:int=1):
+    url = "https://api.spoonacular.com/recipes/random"
+
+    params = {
+        "number": number,
+        "apiKey": API_KEY,
+    }
+
+    #Dać limit na ilośc zapytań w jednym poleceniu np. max 5
+
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        return
+
     data = response.json()
-    recipe = data["recipes"][0]
+    recipes = data["recipes"]
 
-    title = recipe["title"]
-    instructions_raw = recipe.get("instructions", "No instructions 😢")
-    image_url = recipe.get("image", "")
-    source_url = recipe.get("sourceUrl", "")
-    summary= recipe.get("summary", "")
-    servings = recipe.get("servings", 0)
-    ready_in_minutes = recipe.get("readyInMinutes", 0)
-    cuisines = recipe.get("cuisines", 0)
-    dish_types = recipe.get("dishTypes", "")
-    price = recipe.get("pricePerServing", 0)
-    diets = recipe.get("diets", 0)
+    for recipe in recipes:
+        title = recipe["title"]
+        instructions_raw = recipe.get("instructions", "No instructions 😢")
+        image_url = recipe.get("image", "")
+        source_url = recipe.get("sourceUrl", "")
+        servings = recipe.get("servings", 0)
+        ready_in_minutes = recipe.get("readyInMinutes", 0)
+        cuisines = recipe.get("cuisines", 0)
+        dish_types = recipe.get("dishTypes", "")
+        price = recipe.get("pricePerServing", 0)
+        diets = recipe.get("diets", 0)
 
-    cleaner = HTMLCleaner()
-    instructions = cleaner.clean(instructions_raw)
+        ###do wywalenia raczej
+        cleaner = HTMLCleaner()
+        instructions = cleaner.clean(instructions_raw)
 
-    if len(instructions) > 1024:
-        instructions = instructions[:1020] + "..."
+        if len(instructions) > 1024:
+            instructions = instructions[:1020] + "..."
+        ###
+        embed = discord.Embed(
+            title=title,
+            url=source_url,
+            color=discord.Color.green()
+        )
 
-    embed = discord.Embed(
-        title=title,
-        url=source_url,
-        color=discord.Color.green()
-    )
+        formatted_cuisine="\n".join(f"• {item}" for item in cuisines)
+        formatted_dish_types="\n".join(f"• {item}" for item in dish_types)
+        formatted_diets="\n".join(f"• {item}" for item in diets)
+        price_in_usd=price/100
 
-    formatted_cuisine="\n".join(f"• {item}" for item in cuisines)
-    formatted_dish_types="\n".join(f"• {item}" for item in dish_types)
-    formatted_diets="\n".join(f"• {item}" for item in diets)
-    price_in_usd=price/100
+        embed.add_field(name="🍽️ Servings",value=servings,inline=True)
+        embed.add_field(name="⏱️ Ready in",value=f"{ready_in_minutes} minutes",inline=True)
+        embed.add_field(name="💰 Price Per Serving",value=f"{price_in_usd:.2f} USD",inline=True)
+        if len(dish_types) > 0:
+            embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
 
-    embed.add_field(name="🍽️ Servings",value=servings,inline=True)
-    embed.add_field(name="⏱️ Ready in",value=f"{ready_in_minutes} minutes",inline=True)
-    embed.add_field(name="💰 Price Per Serving",value=f"{price_in_usd:.2f} USD",inline=True)
-    if len(dish_types) > 0:
-        embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+        if len(cuisines) > 0:
+            embed.add_field(name="🌍 Cuisine",value=formatted_cuisine,inline=True)
 
-    if len(cuisines) > 0:
-        embed.add_field(name="🌍 Cuisine",value=formatted_cuisine,inline=True)
+        if len(diets) > 0:
+            embed.add_field(name="🥗 Diet",value=formatted_diets,inline=True)
+        #embed.add_field(name="Instructions", value=instructions,inline=False)
 
-    if len(diets) > 0:
-        embed.add_field(name="🥗 Diet",value=formatted_diets,inline=True)
-    #embed.add_field(name="Instructions", value=instructions,inline=False)
+        if image_url:
+            embed.set_image(url=image_url)
 
-    if image_url:
-        embed.set_image(url=image_url)
+
+        msg = await sender(ctx, embed=embed)
+        if msg:
+            await msg.add_reaction("❤️")
 
     logging.info("Command '!random' was called.")
 
-    #await sender(ctx, embed=embed)
-
-    msg = await sender(ctx, embed=embed)
-    if msg:
-        await msg.add_reaction("❤️")
-
-
-#Dodać funckje szukania po składnikach
 
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -296,7 +350,7 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="`!recipe <name>`",
+        name="`!recipe <name> [number]`",
         value="🔍 Searches for a recipe by name and shows a random matching result.\nExample: `!recipe pasta`",
         inline=False
     )
