@@ -122,14 +122,30 @@ async def recipe_by_name(ctx, *, dish_name:str):
             instructions = "No instructions available 😢"
 
 
-        #dodać do cleanera robienie instrukcji w punktach i żeby po kropce zaczynał nowy punkt
-
-
         servings = second_result.get("servings", 0)
         ready_in = second_result.get("readyInMinutes", 0)
+        cuisines = recipe.get("cuisines", [])
+        dish_types = recipe.get("dishTypes", [])
+        price = recipe.get("pricePerServing", 0)
+        diets = recipe.get("diets", [])
+        source_name = recipe.get("sourceName", "")
 
         embed.add_field(name="🍽️ Servings", value=servings, inline=True)
-        embed.add_field(name="⏱️ Ready in minutes", value=ready_in, inline=True)
+        embed.add_field(name="⏱️ Ready in",value=f"{ready_in} minutes",inline=True)
+        embed.add_field(name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True)
+        if dish_types:
+            formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
+            embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+
+        if cuisines:
+            formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
+            embed.add_field(name="🌍 Cuisine", value=formatted_cuisine, inline=True)
+
+        if diets:
+            formatted_diets = "\n".join(f"• {item}" for item in diets)
+            embed.add_field(name="🥗 Diet", value=formatted_diets, inline=True)
+
+        embed.set_footer(text=f"Source name: {source_name}")
 
         ingredients = second_result.get("extendedIngredients", [])
 
@@ -152,6 +168,8 @@ async def recipe_by_name(ctx, *, dish_name:str):
 
 # dodać jeszcze szukanie losowych na konkretną porę dnia albo określona kuchnia (include tags),
 
+
+#dodać więcej danych
 @bot.command(name="ingredients")
 async def search_by_ingredients(ctx, *, ingredients:str):
     parts = ingredients.rsplit(" ", 1)
@@ -205,6 +223,7 @@ async def search_by_ingredients(ctx, *, ingredients:str):
         source_url = info.get("sourceUrl", "")
         servings = info.get("servings", 0)
         ready_in = info.get("readyInMinutes",0)
+        source_name=info.get("sourceName", "")
 
         embed = discord.Embed(
             title=title,
@@ -213,8 +232,10 @@ async def search_by_ingredients(ctx, *, ingredients:str):
         )
         embed.add_field(name="🛒 Missed Ingredients", value=missed_ingredients, inline=False)
         embed.add_field(name="🍽️ Servings", value=servings, inline=True)
-        embed.add_field(name="⏱️ Ready In", value=ready_in, inline=True)
+        embed.add_field(name="⏱️ Ready in",value=f"{ready_in} minutes",inline=True)
         embed.set_image(url=image_url)
+        embed.set_footer(text=f"Source name: {source_name}")
+
 
         msg = await sender(ctx, embed=embed)
         if msg:
@@ -226,6 +247,10 @@ async def search_by_ingredients(ctx, *, ingredients:str):
 
 @bot.command(name="random")
 async def random_recipe(ctx, number:int=1):
+    if number < 1 or number > 5:
+        await ctx.send("❗ Please request between 1 and 5 recipes.")
+        return
+
     url = "https://api.spoonacular.com/recipes/random"
 
     params = {
@@ -233,10 +258,9 @@ async def random_recipe(ctx, number:int=1):
         "apiKey": API_KEY,
     }
 
-    #Dać limit na ilośc zapytań w jednym poleceniu np. max 5
-
     response = requests.get(url, params=params)
     if response.status_code != 200:
+        await ctx.send("⚠️ Failed to get recipes.")
         return
 
     data = response.json()
@@ -244,50 +268,61 @@ async def random_recipe(ctx, number:int=1):
 
     for recipe in recipes:
         title = recipe["title"]
-        instructions_raw = recipe.get("instructions", "No instructions 😢")
-        image_url = recipe.get("image", "")
+        image_url = recipe.get("image", "Unknown")
         source_url = recipe.get("sourceUrl", "")
         servings = recipe.get("servings", 0)
         ready_in_minutes = recipe.get("readyInMinutes", 0)
-        cuisines = recipe.get("cuisines", 0)
-        dish_types = recipe.get("dishTypes", "")
+        cuisines = recipe.get("cuisines", [])
+        dish_types = recipe.get("dishTypes", [])
         price = recipe.get("pricePerServing", 0)
-        diets = recipe.get("diets", 0)
+        diets = recipe.get("diets", [])
+        source_name=recipe.get("sourceName", "")
 
-        ###do wywalenia raczej
-        cleaner = HTMLCleaner()
-        instructions = cleaner.clean(instructions_raw)
+        # instructions_raw = recipe.get("instructions", "")
+        # analyzed_instructions = recipe.get("analyzedInstructions", [])
+        # instructions = ""
+        #
+        # if instructions_raw:
+        #     if is_html(instructions_raw):
+        #         cleaner = HTMLCleaner()
+        #         instructions = cleaner.clean(instructions_raw)
+        #     else:
+        #         instructions = instructions_raw
+        #
+        # if not instructions and analyzed_instructions:
+        #     steps = []
+        #     for step in analyzed_instructions[0].get("steps", []):
+        #         steps.append(f"{step['number']}. {step['step']}")
+        #     instructions = "\n".join(steps)
+        #
+        # if not instructions:
+        #     instructions = "No instructions available 😢"
 
-        if len(instructions) > 1024:
-            instructions = instructions[:1020] + "..."
-        ###
         embed = discord.Embed(
             title=title,
             url=source_url,
             color=discord.Color.green()
         )
 
-        formatted_cuisine="\n".join(f"• {item}" for item in cuisines)
-        formatted_dish_types="\n".join(f"• {item}" for item in dish_types)
-        formatted_diets="\n".join(f"• {item}" for item in diets)
-        price_in_usd=price/100
-
         embed.add_field(name="🍽️ Servings",value=servings,inline=True)
         embed.add_field(name="⏱️ Ready in",value=f"{ready_in_minutes} minutes",inline=True)
-        embed.add_field(name="💰 Price Per Serving",value=f"{price_in_usd:.2f} USD",inline=True)
-        if len(dish_types) > 0:
+        embed.add_field(name="💰 Price Per Serving",value=f"{price/100:.2f} USD",inline=True)
+        if dish_types:
+            formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
             embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
 
-        if len(cuisines) > 0:
+        if cuisines:
+            formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
             embed.add_field(name="🌍 Cuisine",value=formatted_cuisine,inline=True)
 
-        if len(diets) > 0:
+        if diets:
+            formatted_diets = "\n".join(f"• {item}" for item in diets)
             embed.add_field(name="🥗 Diet",value=formatted_diets,inline=True)
         #embed.add_field(name="Instructions", value=instructions,inline=False)
+        embed.set_footer(text=f"Source name: {source_name}")
 
         if image_url:
             embed.set_image(url=image_url)
-
 
         msg = await sender(ctx, embed=embed)
         if msg:
@@ -295,6 +330,7 @@ async def random_recipe(ctx, number:int=1):
 
     logging.info("Command '!random' was called.")
 
+#dodać ingredients
 
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -355,14 +391,20 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="`!recipe <name> [number]`",
+        name="`!recipe <name>`",
         value="🔍 Searches for a recipe by name and shows a random matching result.\nExample: `!recipe pasta`",
         inline=False
     )
 
     embed.add_field(
-        name="`!random`",
-        value="🎲 Shows a completely random recipe.",
+        name="`!ingredients <ingredient1,ingredient2,...> [number]`",
+        value="🧂 Finds recipes based on available ingredients.\nExample: `!ingredients tomato,cheese 2`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!random [1-5]`",
+        value="🎲 Shows 1 to 5 random recipes.\nExample: `!random 3`",
         inline=False
     )
 
