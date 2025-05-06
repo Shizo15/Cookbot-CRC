@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from HTMLCleaner import *
 import logging
 import random
+from isHTML import *
 
 load_dotenv()
 
@@ -38,40 +39,33 @@ async def sender(ctx, *args, **kwargs):
         return None
 
 @bot.command(name="recipe")
-async def recipe_by_name(ctx, *, args:str):
-    #zobaczyć dlaczego się błędy robią jak nie poda się w query liczby przepisów
-    #albo wywalić całkowicie ta liczbe przepisów do wyświetlenia
-    parts = args.rsplit(" ", 1)
-    try:
-        number = int(parts[1])
-        dish_name = parts[0]
-    except IndexError:
-        number = 1
-        dish_name = parts[0]
-
+async def recipe_by_name(ctx, *, dish_name:str):
     url = "https://api.spoonacular.com/recipes/complexSearch"
 
     first_params = {
         "query": dish_name,
-        "number": number,
+        "number": 1,
         "apiKey": API_KEY
     }
+
     first_response = requests.get(url, params=first_params)
     first_data = first_response.json()
     first_results = first_data["results"]
     total_results = first_data.get("totalResults", 0)
-    rand_result = random.randint(0, total_results-1)
-
-    print("Matching results: ",rand_result+1)
 
     if not first_results:
         await ctx.send(f"Cannot find recipe for: **{dish_name}**")
         return
 
+    if total_results > 1:
+        await ctx.send(f"🔎 Matching results: **{total_results}**")
+
+    rand_result = random.randint(0, total_results-1)
+
     params = {
         "query": dish_name,
         "offset": rand_result,
-        "number": number,
+        "number": 1,
         "addRecipeInformation": True,
         "apiKey": API_KEY,
     }
@@ -89,19 +83,18 @@ async def recipe_by_name(ctx, *, args:str):
         title = recipe.get("title", "Unknown recipe")
         image_url = recipe.get("image", "")
         source = recipe.get("sourceUrl", "")
-        recipe_id = recipe.get("id")
+        recipe_id = recipe.get("id", 0)
 
         embed = discord.Embed(
             title=title,
             url=source,
             colour=discord.Colour.blurple()
         )
-        #Tu trzeba będzie wyświetlać:
-        # porcje
+
         if image_url:
             embed.set_image(url=image_url)
 
-        #2 request
+        #2nd request
         instructions_info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
 
         instructions_params={
@@ -110,20 +103,33 @@ async def recipe_by_name(ctx, *, args:str):
         }
         instructions_response = requests.get(instructions_info_url, params=instructions_params)
         second_result = instructions_response.json()
+
         instructions_raw = second_result.get("instructions", "")
+        analyzed_instructions=second_result.get("analyzedInstructions", [])
+        instructions=""
+
+        if instructions_raw and is_html(instructions_raw):
+            cleaner = HTMLCleaner()
+            instructions = cleaner.clean(instructions_raw)
+
+        if analyzed_instructions:
+            steps=[]
+            for step in analyzed_instructions[0].get("steps", []):
+                steps.append(f"{step['number']}. {step['step']}")
+            instructions = "\n".join(steps)
+
+        if not instructions:
+            instructions = "No instructions available 😢"
+
 
         #dodać do cleanera robienie instrukcji w punktach i żeby po kropce zaczynał nowy punkt
-        cleaner = HTMLCleaner()
-        instructions = cleaner.clean(instructions_raw)
+
 
         servings = second_result.get("servings", 0)
-        #poprawić to na ogólny czas przygotowania bo nie podają w przepisach podzielonego na gotowanie itd.
-        cooking_time = second_result.get("cookingMinutes", 0)
-        preparation_time = second_result.get("preparationMinutes", 0)
+        ready_in = second_result.get("readyInMinutes", 0)
 
         embed.add_field(name="🍽️ Servings", value=servings, inline=True)
-        embed.add_field(name="⏱️ Preparation time", value=preparation_time, inline=True)
-        embed.add_field(name="⏱️ Cooking time", value=cooking_time, inline=True)
+        embed.add_field(name="⏱️ Ready in minutes", value=ready_in, inline=True)
 
         ingredients = second_result.get("extendedIngredients", [])
 
@@ -145,7 +151,6 @@ async def recipe_by_name(ctx, *, args:str):
     logging.info(f"Command '!recipe' was called with argument: {dish_name}.")
 
 # dodać jeszcze szukanie losowych na konkretną porę dnia albo określona kuchnia (include tags),
-# chyba będzie lepiej to zrobić przez recipe a nie random bo jest więcej możliwości wyszukiwania
 
 @bot.command(name="ingredients")
 async def search_by_ingredients(ctx, *, ingredients:str):
