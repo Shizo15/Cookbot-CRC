@@ -165,16 +165,295 @@ async def recipe_by_name(ctx, *, dish_name:str):
 
     logging.info(f"Command '!recipe' was called with argument: {dish_name}.")
 
-# dodać jeszcze szukanie losowych na konkretną porę dnia albo określona kuchnia (include tags),
-@bot.command(name="meal")
-async def search_by_type(ctx, *, dish_type:str):
+##todo
+## zmienić waluty kosztów posiłku?
+## poprawić kod - wywalić duplikaty, ogarnąc nazwy
+## podzielić funkcje na oddzielne pliki
 
-    pass
+@bot.command(name="meal")
+async def search_by_type(ctx, *, recipe_type:str):
+    parts = recipe_type.rsplit(" ", 1)
+    try:
+        number = int(parts[1])
+        if number < 1 or number > 5:
+            await ctx.send("❗ Please request between 1 and 5 recipes.")
+            return
+
+        dish_type = parts[0]
+    except IndexError:
+        number = 1
+        dish_type = recipe_type
+
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+
+    first_params = {
+        "apiKey": API_KEY,
+        "type": dish_type,
+        "number": 1,
+    }
+    response = requests.get(url, params=first_params)
+
+    if response.status_code != 200:
+        await ctx.send("Failed to get recipes 😕")
+        return
+
+    first_response = requests.get(url, params=first_params)
+    first_data = first_response.json()
+    first_results = first_data["results"]
+    total_results = first_data.get("totalResults", 0)
+
+    if not first_results:
+        await ctx.send(f"Cannot find recipes for: **{recipe_type}**")
+        return
+
+    if total_results > 1:
+        await ctx.send(f"🔎 Matching results: **{total_results}**")
+
+    rand_result = random.randint(0, total_results - 1)
+
+    params = {
+        "type":dish_type,
+        "offset": rand_result,
+        "number": number,
+        "addRecipeInformation": True,
+        "apiKey": API_KEY,
+    }
+
+    response = requests.get(url, params=params)
+
+    if response.status_code != 200:
+        await ctx.send("Failed to get recipe 😕")
+
+    data = response.json()
+    results = data.get("results")
+
+    for recipe in results:
+        title = recipe.get("title", "Unknown recipe")
+        image_url = recipe.get("image", "")
+        source = recipe.get("sourceUrl", "")
+        recipe_id = recipe.get("id", 0)
+
+        embed = discord.Embed(
+            title=title,
+            url=source,
+            colour=discord.Colour.blurple()
+        )
+
+        if image_url:
+            embed.set_image(url=image_url)
+
+        # 2nd request
+        instructions_info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+
+        instructions_params = {
+            "apiKey": API_KEY,
+        }
+        instructions_response = requests.get(instructions_info_url, params=instructions_params)
+        second_result = instructions_response.json()
+
+        instructions_raw = second_result.get("instructions", "")
+        analyzed_instructions = second_result.get("analyzedInstructions", [])
+        instructions = ""
+
+        if instructions_raw and is_html(instructions_raw):
+            cleaner = HTMLCleaner()
+            instructions = cleaner.clean(instructions_raw)
+
+        if analyzed_instructions:
+            steps = []
+            for step in analyzed_instructions[0].get("steps", []):
+                steps.append(f"{step['number']}. {step['step']}")
+            instructions = "\n".join(steps)
+
+        if not instructions:
+            instructions = "No instructions available 😢"
+
+        servings = second_result.get("servings", 0)
+        ready_in = second_result.get("readyInMinutes", 0)
+        cuisines = recipe.get("cuisines", [])
+        dish_types = recipe.get("dishTypes", [])
+        price = recipe.get("pricePerServing", 0)
+        diets = recipe.get("diets", [])
+        source_name = recipe.get("sourceName", "")
+
+        embed.add_field(name="🍽️ Servings", value=servings, inline=True)
+        embed.add_field(name="⏱️ Ready in", value=f"{ready_in} minutes", inline=True)
+        embed.add_field(name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True)
+        if dish_types:
+            formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
+            embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+
+        if cuisines:
+            formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
+            embed.add_field(name="🌍 Cuisine", value=formatted_cuisine, inline=True)
+
+        if diets:
+            formatted_diets = "\n".join(f"• {item}" for item in diets)
+            embed.add_field(name="🥗 Diet", value=formatted_diets, inline=True)
+
+        embed.set_footer(text=f"Source name: {source_name}")
+
+        ingredients = second_result.get("extendedIngredients", [])
+
+        ingredient_list = []
+        for item in ingredients:
+            name = item.get("name", "unknown")
+            amount = item.get("amount", 0)
+            unit = item.get("unit", "")
+            ingredient_list.append(f"• {amount} {unit} {name}".strip())
+
+        formatted_ingredients = "\n".join(ingredient_list)
+
+        msg = await sender(ctx, embed=embed)
+        if msg:
+            await msg.add_reaction("❤️")
+        await ctx.send(f"📋 **Ingredients:**\n{formatted_ingredients}\n")
+        await ctx.send(f"\n📖 **Instructions for {title}:**\n{instructions}")
+
+    logging.info(f"Command '!cuisine' was called with argument: {dish_type}.")
 
 @bot.command(name="cuisine")
 async def search_by_cuisine(ctx, *, cuisine:str):
+    parts = cuisine.rsplit(" ", 1)
+    try:
+        number = int(parts[1])
+        if number < 1 or number > 5:
+            await ctx.send("❗ Please request between 1 and 5 recipes.")
+            return
 
-    pass
+        cuisine_type = parts[0]
+    except IndexError:
+        number = 1
+        cuisine_type = cuisine
+
+    url = "https://api.spoonacular.com/recipes/complexSearch"
+
+    first_params = {
+        "apiKey": API_KEY,
+        "cuisine": cuisine_type,
+        "number": 1,
+    }
+    response = requests.get(url, params=first_params)
+
+    if response.status_code != 200:
+        await ctx.send("Failed to get recipes 😕")
+        return
+
+    first_response = requests.get(url, params=first_params)
+    first_data = first_response.json()
+    first_results = first_data["results"]
+    total_results = first_data.get("totalResults", 0)
+
+    if not first_results:
+        await ctx.send(f"Cannot find recipes for: **{cuisine}**")
+        return
+
+    if total_results > 1:
+        await ctx.send(f"🔎 Matching results: **{total_results}**")
+
+    rand_result = random.randint(0, total_results - 1)
+
+    params = {
+        "type": cuisine_type,
+        "offset": rand_result,
+        "number": number,
+        "addRecipeInformation": True,
+        "apiKey": API_KEY,
+    }
+
+    response = requests.get(url, params=params)
+
+    if response.status_code != 200:
+        await ctx.send("Failed to get recipe 😕")
+
+    data = response.json()
+    results = data.get("results")
+
+    for recipe in results:
+        title = recipe.get("title", "Unknown recipe")
+        image_url = recipe.get("image", "")
+        source = recipe.get("sourceUrl", "")
+        recipe_id = recipe.get("id", 0)
+
+        embed = discord.Embed(
+            title=title,
+            url=source,
+            colour=discord.Colour.blurple()
+        )
+
+        if image_url:
+            embed.set_image(url=image_url)
+
+        # 2nd request
+        instructions_info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+
+        instructions_params = {
+            "apiKey": API_KEY,
+        }
+        instructions_response = requests.get(instructions_info_url, params=instructions_params)
+        second_result = instructions_response.json()
+
+        instructions_raw = second_result.get("instructions", "")
+        analyzed_instructions = second_result.get("analyzedInstructions", [])
+        instructions = ""
+
+        if instructions_raw and is_html(instructions_raw):
+            cleaner = HTMLCleaner()
+            instructions = cleaner.clean(instructions_raw)
+
+        if analyzed_instructions:
+            steps = []
+            for step in analyzed_instructions[0].get("steps", []):
+                steps.append(f"{step['number']}. {step['step']}")
+            instructions = "\n".join(steps)
+
+        if not instructions:
+            instructions = "No instructions available 😢"
+
+        servings = second_result.get("servings", 0)
+        ready_in = second_result.get("readyInMinutes", 0)
+        cuisines = recipe.get("cuisines", [])
+        dish_types = recipe.get("dishTypes", [])
+        price = recipe.get("pricePerServing", 0)
+        diets = recipe.get("diets", [])
+        source_name = recipe.get("sourceName", "")
+
+        embed.add_field(name="🍽️ Servings", value=servings, inline=True)
+        embed.add_field(name="⏱️ Ready in", value=f"{ready_in} minutes", inline=True)
+        embed.add_field(name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True)
+        if dish_types:
+            formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
+            embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+
+        if cuisines:
+            formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
+            embed.add_field(name="🌍 Cuisine", value=formatted_cuisine, inline=True)
+
+        if diets:
+            formatted_diets = "\n".join(f"• {item}" for item in diets)
+            embed.add_field(name="🥗 Diet", value=formatted_diets, inline=True)
+
+        embed.set_footer(text=f"Source name: {source_name}")
+
+        ingredients = second_result.get("extendedIngredients", [])
+
+        ingredient_list = []
+        for item in ingredients:
+            name = item.get("name", "unknown")
+            amount = item.get("amount", 0)
+            unit = item.get("unit", "")
+            ingredient_list.append(f"• {amount} {unit} {name}".strip())
+
+        formatted_ingredients = "\n".join(ingredient_list)
+
+        msg = await sender(ctx, embed=embed)
+        if msg:
+            await msg.add_reaction("❤️")
+        await ctx.send(f"📋 **Ingredients:**\n{formatted_ingredients}\n")
+        await ctx.send(f"\n📖 **Instructions for {title}:**\n{instructions}")
+
+    logging.info(f"Command '!cuisine' was called with argument: {cuisine}.")
+
 
 @bot.command(name="ingredients")
 async def search_by_ingredients(ctx, *, ingredients:str):
@@ -430,6 +709,23 @@ async def help_command(ctx):
     embed.add_field(
         name="`!recipe <name>`",
         value="🔍 Searches for a recipe by name and shows a random matching result.\nExample: `!recipe pasta`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!meal <meal type> [number]`",
+        value="🍽️ Searches for random recipes by type (e.g. breakfast, maincourse ). Optional number (1-5). "
+              "\nExample: `!meal breakfast 2`"
+              "\n**Available meal types**: `maincourse`, `sidedish`, `dessert`, `appetizer`, `salad`, `bread`, `breakfast`, `soup`, `beverage`, `sauce`, `marinade`, `fingerfood`, `snack`, `drink`. ",
+
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!cuisine <cuisine type> [number]`",
+        value="🌍 Searches for recipes from a specific cuisine. Optional number (1-5). "
+              "\nExample: `!cuisine italian 3`"
+              "\n**Available cuisines**: `african`, `asian`, `american`, `british`, `cajun`, `caribbean`, `chinese`, `easterneuropean`, `european`, `french`, `german`, `greek`, `indian`, `irish`, `italian`, `japanese`, `jewish`, `korean`, `latinamerican`, `mediterranean`, `mexican`, `middleeastern`, `nordic`, `southern`, `spanish`, `thai`, `vietnamese`. ",
         inline=False
     )
 
