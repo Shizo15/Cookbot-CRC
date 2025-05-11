@@ -209,7 +209,10 @@ async def search_by_ingredients(ctx, *, ingredients:str):
 
         #2 request
         info_url=f"https://api.spoonacular.com/recipes/{recipe_id}/information"
-
+        ##todo
+        ## dodać intrukcje i i pełną listęskłądników z podświetlonymi posiadanymi
+        ## zrobić coś aby te przepisy losowo się szukały, bo jak wyśweitlamy po 1 to ciąglem pokazuje ten sam przepis
+        ## dodać więcej informacji o przepisie tak ja w innych embedach
         info_params = {
             "apiKey": API_KEY
         }
@@ -243,8 +246,8 @@ async def search_by_ingredients(ctx, *, ingredients:str):
 
     logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
 
-#Tu trzeba jeszcze zrobić coś aby te przepisy losowo się szukały, bo jak wyśweitlamy po 1 to ciąglem pokazuje ten sam przepis
-
+##todo
+## dodać składniki do embeda
 @bot.command(name="random")
 async def random_recipe(ctx, number:int=1):
     if number < 1 or number > 5:
