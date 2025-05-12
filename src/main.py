@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 
 ##todo
 ## zmienić waluty kosztów posiłku?
-## poprawić kod - wywalić duplikaty, ogarnąc nazwy
-
 
 load_dotenv()
 
@@ -65,7 +63,6 @@ async def on_raw_reaction_remove(payload):
         user_favorites[user_id] = favs
         print(f"❌ User {user_id} deleted recipe {payload.message_id} from favorites.")
 
-##todo - command
 @bot.command(name="favorites")
 async def favorites(ctx):
     favs = user_favorites.get(ctx.author.id, [])

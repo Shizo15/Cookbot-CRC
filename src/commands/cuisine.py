@@ -30,48 +30,47 @@ class Cuisine(commands.Cog):
             number = 1
             cuisine_type = cuisine
 
-        url = "https://api.spoonacular.com/recipes/complexSearch"
+        base_url = "https://api.spoonacular.com/recipes/complexSearch"
 
-        first_params = {
+        initial_params = {
             "apiKey": self.api_key,
             "cuisine": cuisine_type,
             "number": 1,
         }
-        response = requests.get(url, params=first_params)
+        response = requests.get(base_url, params=initial_params)
 
         if response.status_code != 200:
             await ctx.send("Failed to get recipes 😕")
             return
 
-        first_response = requests.get(url, params=first_params)
-        first_data = first_response.json()
-        first_results = first_data["results"]
-        total_results = first_data.get("totalResults", 0)
+        data = response.json()
+        total_results = data.get("totalResults", 0)
 
-        if not first_results:
+        if total_results == 0:
             await ctx.send(f"Cannot find recipes for: **{cuisine}**")
             return
 
         if total_results > 1:
             await ctx.send(f"🔎 Matching results: **{total_results}**")
 
-        rand_result = random.randint(0, total_results - 1)
+        rand_offset = random.randint(0, max(0, total_results - number))
 
         params = {
             "type": cuisine_type,
-            "offset": rand_result,
+            "offset": rand_offset,
             "number": number,
             "addRecipeInformation": True,
             "apiKey": self.api_key,
         }
 
-        response = requests.get(url, params=params)
+        response = requests.get(base_url, params=params)
 
         if response.status_code != 200:
             await ctx.send("Failed to get recipe 😕")
+            return
 
         data = response.json()
-        results = data.get("results")
+        results = data.get("results", [])
 
         for recipe in results:
             title = recipe.get("title", "Unknown recipe")
@@ -88,17 +87,17 @@ class Cuisine(commands.Cog):
             if image_url:
                 embed.set_image(url=image_url)
 
-            # 2nd request
-            instructions_info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
-
-            instructions_params = {
+            #Recpie details
+            info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+            info_params = {
                 "apiKey": self.api_key,
             }
-            instructions_response = requests.get(instructions_info_url, params=instructions_params)
-            second_result = instructions_response.json()
+            info_response = requests.get(info_url, params=info_params)
+            info_data = info_response.json()
 
-            instructions_raw = second_result.get("instructions", "")
-            analyzed_instructions = second_result.get("analyzedInstructions", [])
+            #Instructions
+            instructions_raw = info_data.get("instructions", "")
+            analyzed_instructions = info_data.get("analyzedInstructions", [])
             instructions = ""
 
             if instructions_raw and is_html(instructions_raw):
@@ -114,34 +113,27 @@ class Cuisine(commands.Cog):
             if not instructions:
                 instructions = "No instructions available 😢"
 
-            servings = second_result.get("servings", 0)
-            ready_in = second_result.get("readyInMinutes", 0)
-            cuisines = recipe.get("cuisines", [])
-            dish_types = recipe.get("dishTypes", [])
-            price = recipe.get("pricePerServing", 0)
-            diets = recipe.get("diets", [])
-            source_name = recipe.get("sourceName", "")
+            #Embed fields
+            embed.add_field(name="🍽️ Servings", value=info_data.get("servings", 0), inline=True)
+            embed.add_field(name="⏱️ Ready in", value=f"{info_data.get('readyInMinutes', 0)} minutes", inline=True)
+            embed.add_field(name="💰 Price Per Serving", value=f"{info_data.get('pricePerServing', 0) / 100:.2f} USD",
+                            inline=True)
 
-            embed.add_field(name="🍽️ Servings", value=servings, inline=True)
-            embed.add_field(name="⏱️ Ready in", value=f"{ready_in} minutes", inline=True)
-            embed.add_field(name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True)
-            if dish_types:
-                formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
-                embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+            if dish_types := recipe.get("dishTypes"):
+                embed.add_field(name="🍱 Dish type", value="\n".join(f"• {item}" for item in dish_types), inline=True)
 
-            if cuisines:
-                formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
-                embed.add_field(name="🌍 Cuisine", value=formatted_cuisine, inline=True)
+            if cuisines := recipe.get("cuisines"):
+                embed.add_field(name="🌍 Cuisine", value="\n".join(f"• {item}" for item in cuisines), inline=True)
 
-            if diets:
-                formatted_diets = "\n".join(f"• {item}" for item in diets)
-                embed.add_field(name="🥗 Diet", value=formatted_diets, inline=True)
+            if diets := recipe.get("diets"):
+                embed.add_field(name="🥗 Diet", value="\n".join(f"• {item}" for item in diets), inline=True)
 
-            embed.set_footer(text=f"Source name: {source_name}")
+            embed.set_footer(text=f"Source name: {recipe.get('sourceName', '')}")
 
-            ingredients = second_result.get("extendedIngredients", [])
-
+            #Ingredients
+            ingredients = info_data.get("extendedIngredients", [])
             ingredient_list = []
+
             for item in ingredients:
                 name = item.get("name", "unknown")
                 amount = item.get("amount", 0)
@@ -150,6 +142,7 @@ class Cuisine(commands.Cog):
 
             formatted_ingredients = "\n".join(ingredient_list)
 
+            #Message sending
             msg = await sender(ctx, embed=embed)
             if msg:
                 await msg.add_reaction("❤️")
