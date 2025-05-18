@@ -15,7 +15,6 @@ class Cuisine(commands.Cog):
         self.api_key = os.getenv('API_KEY')
 
 
-##todo - wywalić niepotrzebne zapytania, bo da sie to raczej w 1 zrobić
     @commands.command(name="cuisine")
     async def search_by_cuisine(self, ctx, *, cuisine:str):
         parts = cuisine.rsplit(" ", 1)
