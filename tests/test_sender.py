@@ -6,7 +6,7 @@ from src.utils.sender import sender
 @pytest.fixture
 def mock_ctx():
     ctx = MagicMock()
-    ctx.send = AsyncMock()
+    ctx.send = AsyncMock() #default value is None
     ctx.guild = MagicMock()
     ctx.channel = MagicMock()
     ctx.channel.id = 123

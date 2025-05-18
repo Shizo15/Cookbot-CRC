@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 
 ##todo
 ## zmienić waluty kosztów posiłku?
+## zrobić readme
+## zrobić requirements
+## zrobić unit testy
 
 load_dotenv()
 
@@ -77,5 +80,5 @@ async def favorites(ctx):
 
 if __name__ == "__main__":
     asyncio.run(main())
-    DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-    bot.run(f"{DISCORD_TOKEN}")
+    DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+    bot.run(DISCORD_TOKEN)

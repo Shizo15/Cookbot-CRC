@@ -18,6 +18,10 @@ class Ingredients(commands.Cog):
         parts = ingredients.rsplit(" ", 1)
         try:
             number=int(parts[1])
+            if number < 1 or number > 5:
+                await ctx.send("❗ Please request between 1 and 5 recipes.")
+                return
+
             ingredients = parts[0]
         except IndexError:
             number=1
@@ -136,8 +140,17 @@ class Ingredients(commands.Cog):
             if msg:
                 await msg.add_reaction("❤️")
 
+            header = f"\n📖 **Instructions for {title}:**\n"
+            max_instr_lenght=2000-len(header)-3
+
             await ctx.send(f"📋 **Ingredients:**\n{formatted_ingredients}\n")
-            await ctx.send(f"\n📖 **Instructions for {title}:**\n{instructions}")
+
+            if len(instructions) >= 2000:
+                await ctx.send(f"{header}{instructions[:max_instr_lenght]}"+"...")
+            else:
+                await ctx.send(f"{header}{instructions}")
+
+
 
         logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
 
