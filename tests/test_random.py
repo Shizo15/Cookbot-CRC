@@ -48,9 +48,9 @@ async def test_random_recipe_success(mock_get, mock_sender):
 @pytest.mark.asyncio
 @mock.patch("src.commands.random.sender", new_callable=AsyncMock)
 @mock.patch("src.commands.random.requests.get")
-async def test_random_recipe_failure(mock_get, mock_sender):
+async def test_api_failure(mock_get, mock_sender):
     mock_response = MagicMock()
-    mock_response.status_code = 400
+    mock_response.status_code = 500
     mock_get.return_value = mock_response
 
     ctx = MagicMock()
