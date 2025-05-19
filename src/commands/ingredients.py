@@ -8,31 +8,32 @@ from src.utils.isHTML import is_html
 from src.utils.HTMLCleaner import HTMLCleaner
 from src.utils.sender import sender
 
+
 class Ingredients(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.api_key = os.getenv('API_KEY')
+        self.api_key = os.getenv("API_KEY")
 
     @commands.command(name="ingredients")
-    async def search_by_ingredients(self, ctx, *, ingredients:str):
+    async def search_by_ingredients(self, ctx, *, ingredients: str):
         parts = ingredients.rsplit(" ", 1)
         try:
-            number=int(parts[1])
+            number = int(parts[1])
             if number < 1 or number > 5:
                 await ctx.send("❗ Please request between 1 and 5 recipes.")
                 return
 
             ingredients = parts[0]
         except IndexError:
-            number=1
-            ingredients=ingredients
+            number = 1
+            ingredients = ingredients
 
         url = "https://api.spoonacular.com/recipes/findByIngredients"
 
         params = {
             "ingredients": ingredients,
             "number": number,
-            "ranking":1,
+            "ranking": 1,
             "apiKey": self.api_key,
         }
 
@@ -51,15 +52,15 @@ class Ingredients(commands.Cog):
         for recipe in data:
             title = recipe["title"]
             image_url = recipe["image"]
-            missed_ingredients = ", ".join([i["name"] for i in recipe.get("missedIngredients", [])])
-            recipe_id=recipe["id"]
+            missed_ingredients = ", ".join(
+                [i["name"] for i in recipe.get("missedIngredients", [])]
+            )
+            recipe_id = recipe["id"]
 
-            #2 request
-            info_url=f"https://api.spoonacular.com/recipes/{recipe_id}/information"
+            # 2 request
+            info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
 
-            info_params = {
-                "apiKey": self.api_key
-            }
+            info_params = {"apiKey": self.api_key}
             info_response = requests.get(info_url, params=info_params)
 
             if info_response.status_code != 200:
@@ -69,27 +70,30 @@ class Ingredients(commands.Cog):
 
             source_url = info.get("sourceUrl", "")
             servings = info.get("servings", 0)
-            ready_in = info.get("readyInMinutes",0)
-            source_name=info.get("sourceName", "")
+            ready_in = info.get("readyInMinutes", 0)
+            source_name = info.get("sourceName", "")
             cuisines = info.get("cuisines", [])
             dish_types = info.get("dishTypes", [])
             price = info.get("pricePerServing", 0)
             diets = info.get("diets", [])
 
-
             embed = discord.Embed(
-                title=title,
-                url=source_url,
-                colour=discord.Colour.blurple()
+                title=title, url=source_url, colour=discord.Colour.blurple()
             )
-            embed.add_field(name="🛒 Missed Ingredients", value=missed_ingredients, inline=False)
+            embed.add_field(
+                name="🛒 Missed Ingredients", value=missed_ingredients, inline=False
+            )
             embed.add_field(name="🍽️ Servings", value=servings, inline=True)
-            embed.add_field(name="⏱️ Ready in",value=f"{ready_in} minutes",inline=True)
+            embed.add_field(name="⏱️ Ready in", value=f"{ready_in} minutes", inline=True)
 
-            embed.add_field(name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True)
+            embed.add_field(
+                name="💰 Price Per Serving", value=f"{price / 100:.2f} USD", inline=True
+            )
             if dish_types:
                 formatted_dish_types = "\n".join(f"• {item}" for item in dish_types)
-                embed.add_field(name="🍱 Dish type", value=formatted_dish_types, inline=True)
+                embed.add_field(
+                    name="🍱 Dish type", value=formatted_dish_types, inline=True
+                )
 
             if cuisines:
                 formatted_cuisine = "\n".join(f"• {item}" for item in cuisines)
@@ -112,10 +116,11 @@ class Ingredients(commands.Cog):
                 amount = item.get("amount", 0)
                 unit = item.get("unit", "")
                 if name in missed_ingredients:
-                    ingredient_list.append(f"• **{amount} {unit} {name} - missing**".strip())
+                    ingredient_list.append(
+                        f"• **{amount} {unit} {name} - missing**".strip()
+                    )
                 else:
                     ingredient_list.append(f"• {amount} {unit} {name}".strip())
-
 
             formatted_ingredients = "\n".join(ingredient_list)
 
@@ -141,18 +146,17 @@ class Ingredients(commands.Cog):
                 await msg.add_reaction("❤️")
 
             header = f"\n📖 **Instructions for {title}:**\n"
-            max_instr_lenght=2000-len(header)-3
+            max_instr_lenght = 2000 - len(header) - 3
 
             await ctx.send(f"📋 **Ingredients:**\n{formatted_ingredients}\n")
 
             if len(instructions) >= 2000:
-                await ctx.send(f"{header}{instructions[:max_instr_lenght]}"+"...")
+                await ctx.send(f"{header}{instructions[:max_instr_lenght]}" + "...")
             else:
                 await ctx.send(f"{header}{instructions}")
 
-
-
         logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
+
 
 async def setup(bot):
     await bot.add_cog(Ingredients(bot))

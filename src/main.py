@@ -16,6 +16,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+
 async def main():
     await bot.load_extension("commands.recipe")
     await bot.load_extension("commands.meal")
@@ -24,9 +25,11 @@ async def main():
     await bot.load_extension("commands.ingredients")
     await bot.load_extension("commands.helpme")
 
+
 API_KEY = os.getenv("API_KEY")
 
-user_favorites={}
+user_favorites = {}
+
 
 @bot.event
 async def on_raw_reaction_add(payload):
@@ -53,6 +56,7 @@ async def on_raw_reaction_add(payload):
 
         print(f"✅ User {user_id} added recipe {payload.message_id} to favorites.")
 
+
 @bot.event
 async def on_raw_reaction_remove(payload):
     if payload.emoji.name != "❤️":
@@ -66,6 +70,7 @@ async def on_raw_reaction_remove(payload):
         user_favorites[user_id] = favs
         print(f"❌ User {user_id} deleted recipe {payload.message_id} from favorites.")
 
+
 @bot.command(name="favorites")
 async def favorites(ctx):
     favs = user_favorites.get(ctx.author.id, [])
@@ -74,11 +79,15 @@ async def favorites(ctx):
         return
 
     message = "📌 Your favorite recipes:\n" + "\n".join(
-        [f"https://discord.com/channels/{ctx.guild.id}/{ctx.channel.id}/{mid}" for mid in favs])
+        [
+            f"https://discord.com/channels/{ctx.guild.id}/{ctx.channel.id}/{mid}"
+            for mid in favs
+        ]
+    )
     await ctx.send(message)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-    DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+    DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     bot.run(DISCORD_TOKEN)

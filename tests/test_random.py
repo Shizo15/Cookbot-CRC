@@ -3,7 +3,8 @@ from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 import src.commands.random as RandomModule
 
-#Testing request
+
+# Testing request
 @pytest.mark.asyncio
 @mock.patch("src.commands.random.sender", new_callable=AsyncMock)
 @mock.patch("src.commands.random.requests.get")
@@ -23,7 +24,7 @@ async def test_random_recipe_success(mock_get, mock_sender):
                 "dishTypes": ["main course"],
                 "pricePerServing": 500,
                 "diets": ["vegetarian"],
-                "sourceName": "TestSource"
+                "sourceName": "TestSource",
             }
         ]
     }
@@ -39,11 +40,11 @@ async def test_random_recipe_success(mock_get, mock_sender):
 
     await random_cog.random_recipe.callback(random_cog, ctx, number=1)
 
-    #Check if sender was called
+    # Check if sender was called
     mock_sender.assert_awaited()
 
 
-#Testing failed request
+# Testing failed request
 @pytest.mark.asyncio
 @mock.patch("src.commands.random.sender", new_callable=AsyncMock)
 @mock.patch("src.commands.random.requests.get")
@@ -64,6 +65,7 @@ async def test_random_recipe_failure(mock_get, mock_sender):
 
     mock_sender.assert_not_awaited()
 
+
 @pytest.mark.asyncio
 @mock.patch("src.commands.random.sender", new_callable=AsyncMock)
 @mock.patch("src.commands.random.requests.get")
@@ -74,12 +76,14 @@ async def test_random_recipe_number_range(mock_get, mock_sender):
     bot_mock = MagicMock()
     random_cog = RandomModule.Random(bot_mock)
 
-    await random_cog.random_recipe.callback(random_cog, ctx, number=6)#more than limit - 5
+    await random_cog.random_recipe.callback(
+        random_cog, ctx, number=6
+    )  # more than limit - 5
 
     ctx.send.assert_awaited_once_with("❗ Please request between 1 and 5 recipes.")
 
-    #Making sure there was no API request
+    # Making sure there was no API request
     mock_get.assert_not_called()
 
-    #Making sure that sender wasn't called
+    # Making sure that sender wasn't called
     mock_sender.assert_not_awaited()

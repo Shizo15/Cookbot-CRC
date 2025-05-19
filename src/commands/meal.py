@@ -13,10 +13,10 @@ from src.utils.sender import sender
 class Meal(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.api_key = os.getenv('API_KEY')
+        self.api_key = os.getenv("API_KEY")
 
     @commands.command(name="meal")
-    async def search_by_type(self, ctx, *, recipe_type:str):
+    async def search_by_type(self, ctx, *, recipe_type: str):
         parts = recipe_type.rsplit(" ", 1)
         try:
             number = int(parts[1])
@@ -55,7 +55,7 @@ class Meal(commands.Cog):
         rand_offset = random.randint(0, max(0, total_results - number))
 
         params = {
-            "type":dish_type,
+            "type": dish_type,
             "offset": rand_offset,
             "number": number,
             "addRecipeInformation": True,
@@ -78,15 +78,13 @@ class Meal(commands.Cog):
             recipe_id = recipe.get("id", 0)
 
             embed = discord.Embed(
-                title=title,
-                url=source,
-                colour=discord.Colour.blurple()
+                title=title, url=source, colour=discord.Colour.blurple()
             )
 
             if image_url:
                 embed.set_image(url=image_url)
 
-            #Instructions
+            # Instructions
             info_url = f"https://api.spoonacular.com/recipes/{recipe_id}/information"
 
             info_params = {
@@ -95,7 +93,7 @@ class Meal(commands.Cog):
             info_response = requests.get(info_url, params=info_params)
             info_data = info_response.json()
 
-            #Instructions
+            # Instructions
             instructions_raw = info_data.get("instructions", "")
             analyzed_instructions = info_data.get("analyzedInstructions", [])
             instructions = ""
@@ -113,24 +111,45 @@ class Meal(commands.Cog):
             if not instructions:
                 instructions = "No instructions available 😢"
 
-            #Embed fields
-            embed.add_field(name="🍽️ Servings", value=info_data.get("servings", 0), inline=True)
-            embed.add_field(name="⏱️ Ready in", value=f"{info_data.get('readyInMinutes', 0)} minutes", inline=True)
-            embed.add_field(name="💰 Price Per Serving", value=f"{info_data.get('pricePerServing', 0) / 100:.2f} USD",
-                            inline=True)
+            # Embed fields
+            embed.add_field(
+                name="🍽️ Servings", value=info_data.get("servings", 0), inline=True
+            )
+            embed.add_field(
+                name="⏱️ Ready in",
+                value=f"{info_data.get('readyInMinutes', 0)} minutes",
+                inline=True,
+            )
+            embed.add_field(
+                name="💰 Price Per Serving",
+                value=f"{info_data.get('pricePerServing', 0) / 100:.2f} USD",
+                inline=True,
+            )
 
             if dish_types := recipe.get("dishTypes"):
-                embed.add_field(name="🍱 Dish type", value="\n".join(f"• {item}" for item in dish_types), inline=True)
+                embed.add_field(
+                    name="🍱 Dish type",
+                    value="\n".join(f"• {item}" for item in dish_types),
+                    inline=True,
+                )
 
             if cuisines := recipe.get("cuisines"):
-                embed.add_field(name="🌍 Cuisine", value="\n".join(f"• {item}" for item in cuisines), inline=True)
+                embed.add_field(
+                    name="🌍 Cuisine",
+                    value="\n".join(f"• {item}" for item in cuisines),
+                    inline=True,
+                )
 
             if diets := recipe.get("diets"):
-                embed.add_field(name="🥗 Diet", value="\n".join(f"• {item}" for item in diets), inline=True)
+                embed.add_field(
+                    name="🥗 Diet",
+                    value="\n".join(f"• {item}" for item in diets),
+                    inline=True,
+                )
 
             embed.set_footer(text=f"Source name: {recipe.get('sourceName', '')}")
 
-            #Ingredients
+            # Ingredients
             ingredients = info_data.get("extendedIngredients", [])
             ingredient_list = []
 
@@ -142,7 +161,7 @@ class Meal(commands.Cog):
 
             formatted_ingredients = "\n".join(ingredient_list)
 
-            #Message sending
+            # Message sending
             msg = await sender(ctx, embed=embed)
             if msg:
                 await msg.add_reaction("❤️")
@@ -158,6 +177,7 @@ class Meal(commands.Cog):
                 await ctx.send(f"{header}{instructions}")
 
         logging.info(f"Command '!cuisine' was called with argument: {dish_type}.")
+
 
 async def setup(bot):
     await bot.add_cog(Meal(bot))
