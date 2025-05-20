@@ -15,8 +15,8 @@ class Ingredients(commands.Cog):
         self.api_key = os.getenv("API_KEY")
 
     @commands.command(name="ingredients")
-    async def search_by_ingredients(self, ctx, *, ingredients: str):
-        parts = ingredients.rsplit(" ", 1)
+    async def search_by_ingredients(self, ctx, *, have_ingredients: str):
+        parts = have_ingredients.rsplit(" ", 1)
         try:
             number = int(parts[1])
             if number < 1 or number > 5:
@@ -26,7 +26,7 @@ class Ingredients(commands.Cog):
             ingredients = parts[0]
         except IndexError:
             number = 1
-            ingredients = ingredients
+            ingredients = have_ingredients
 
         url = "https://api.spoonacular.com/recipes/findByIngredients"
 
@@ -155,7 +155,7 @@ class Ingredients(commands.Cog):
             else:
                 await ctx.send(f"{header}{instructions}")
 
-        logging.info(f"Command '!ingredients' was called with argument: {ingredients}.")
+        logging.info(f"Command '!ingredients' was called with argument: {have_ingredients}.")
 
 
 async def setup(bot):

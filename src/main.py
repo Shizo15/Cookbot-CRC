@@ -2,15 +2,15 @@ import asyncio
 import discord
 import discord.ext.commands as commands
 import os
+import logging
 from dotenv import load_dotenv
 
-##todo
-## zmienić waluty kosztów posiłku?
-## zrobić readme
-## zrobić requirements
-## zrobić unit testy
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
 
 load_dotenv()
+
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -87,7 +87,8 @@ async def favorites(ctx):
     await ctx.send(message)
 
 
+
 if __name__ == "__main__":
+    logging.info("Cookbot starting...")
     asyncio.run(main())
-    DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     bot.run(DISCORD_TOKEN)

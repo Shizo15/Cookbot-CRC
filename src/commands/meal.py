@@ -176,7 +176,7 @@ class Meal(commands.Cog):
             else:
                 await ctx.send(f"{header}{instructions}")
 
-        logging.info(f"Command '!cuisine' was called with argument: {dish_type}.")
+        logging.info(f"Command '!meal' was called with argument: {dish_type}.")
 
 
 async def setup(bot):
