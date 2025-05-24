@@ -1,0 +1,118 @@
+trigger:
+  branches:
+    include:
+      - main
+
+parameters:
+- name: buildImage
+  displayName: "Build Docker Image"
+  type: boolean
+  default: true
+- name: deployAction
+  displayName: "Deployment Action"
+  type: string
+  default: "reinstall"
+  values:
+    - install
+    - uninstall
+    - reinstall
+
+variables:
+- group: secrets
+- name: dockerhub-user
+  value: 'shizo15'
+- name: image_name
+  value: 'cookbot'
+- name: tag
+  value: 'latest'
+- name: dockerImage
+  value: $(dockerhub-user)/$(image_name):$(tag)
+
+stages:
+- stage: Tests
+  condition: eq('${{ parameters.buildImage }}', true)
+  displayName: "Run tests and linter"
+  pool:
+    vmImage: 'ubuntu-latest'
+  jobs:
+    - job: RunTests
+      steps:
+        - checkout: self
+        - script: |
+            python3 -m venv venv
+            source venv/bin/activate
+            python3 -m pip install --upgrade pip
+            pip install -r requirements-dev.txt
+          displayName: 'Install test dependencies'
+        - script: |
+            source venv/bin/activate
+            pytest tests --cov=src
+          displayName: 'Run tests'
+        - script: |
+            source venv/bin/activate
+            ruff check src
+          displayName: 'Run Black linter'
+
+- stage: DockerBuild
+  condition: and(succeeded('Tests'), eq('${{ parameters.buildImage }}', true))
+  displayName: "Build and push Docker image"
+  pool:
+    vmImage: 'ubuntu-latest'
+  jobs:
+    - job: BuildAndPush
+      steps:
+        - checkout: self
+        - task: AzureKeyVault@2
+          inputs:
+            azureSubscription: 'Azure subscription 1 (719fe311-ca1e-4675-8a98-c6f220a88cbc)'
+            KeyVaultName: 'secrets'
+            SecretsFilter: '*'
+            RunAsPreJob: true
+        - script: |
+            docker build -t $(dockerImage) -f src/Dockerfile src/
+          displayName: 'Build Docker image'
+        - script: |
+            docker login -u $(dockerhub-username) -p $(dockerhub-password)
+          displayName: 'Login to Docker Hub'
+        - script: |
+            docker push $(dockerImage)
+          displayName: 'Push Docker image'
+
+- stage: Deploy
+  dependsOn: DockerBuild
+  condition: succeeded()
+  displayName: "Run Docker image on Azure VM (agent)"
+  pool:
+    vmImage: 'ubuntu-latest'
+  jobs:
+    - job: DockerDeploy
+      steps:
+        - checkout: none
+        - task: AzureKeyVault@2
+          inputs:
+            azureSubscription: 'Azure subscription 1 (719fe311-ca1e-4675-8a98-c6f220a88cbc)'
+            KeyVaultName: 'secrets'
+            SecretsFilter: '*'
+            RunAsPreJob: true
+        - script: |
+            docker pull $(dockerImage)
+            case "${{ parameters.deployAction }}" in
+              install)
+                docker run -d --name cookbot \
+                  -e DISCORD_TOKEN=$(DISCORD_TOKEN) \
+                  -e API_TOKEN=$(API_KEY) \
+                  $(dockerImage)
+                ;;
+              uninstall)
+                docker rm -f cookbot || true
+                ;;
+              reinstall)
+                docker rm -f cookbot || true
+                docker run -d --name cookbot \
+                  -e DISCORD_TOKEN=$(DISCORD_TOKEN) \
+                  -e API_TOKEN=$(API_KEY) \
+                  $(dockerImage)
+                ;;
+            esac
+          displayName: "Perform Docker deployment"
+

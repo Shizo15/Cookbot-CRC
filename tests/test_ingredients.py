@@ -171,7 +171,7 @@ async def test_ingredients(mock_get, mock_sender):
     bot_mock = MagicMock()
     ingredients_cog = IngredientsModule.Ingredients(bot_mock)
 
-    await ingredients_cog.search_by_ingredients.callback(ingredients_cog, ctx, ingredients="apples,flour,sugar 1")
+    await ingredients_cog.search_by_ingredients.callback(ingredients_cog, ctx, have_ingredients="apples,flour,sugar 1")
 
     mock_sender.assert_awaited()
 
@@ -186,7 +186,7 @@ async def test_invalid_recipe_count(mock_get, mock_sender):
     bot_mock = MagicMock()
     ingredients_cog= IngredientsModule.Ingredients(bot_mock)
 
-    await ingredients_cog.search_by_ingredients.callback(ingredients_cog, mock_sender, ingredients = "apples,flour,sugar 6")
+    await ingredients_cog.search_by_ingredients.callback(ingredients_cog, mock_sender, have_ingredients = "apples,flour,sugar 6")
     mock_sender.send.assert_called_once_with("❗ Please request between 1 and 5 recipes.")
 
     mock_get.assert_not_called()
