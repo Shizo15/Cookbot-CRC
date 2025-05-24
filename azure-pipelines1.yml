@@ -51,7 +51,7 @@ stages:
         - script: |
             source venv/bin/activate
             ruff check src
-          displayName: 'Run Black linter'
+          displayName: 'Run Ruff linter'
 
 - stage: DockerBuild
   condition: and(succeeded('Tests'), eq('${{ parameters.buildImage }}', true))
@@ -62,12 +62,6 @@ stages:
     - job: BuildAndPush
       steps:
         - checkout: self
-        - task: AzureKeyVault@2
-          inputs:
-            azureSubscription: 'Azure subscription 1 (719fe311-ca1e-4675-8a98-c6f220a88cbc)'
-            KeyVaultName: 'secrets'
-            SecretsFilter: '*'
-            RunAsPreJob: true
         - script: |
             docker build -t $(dockerImage) -f src/Dockerfile src/
           displayName: 'Build Docker image'
@@ -88,12 +82,6 @@ stages:
     - job: DockerDeploy
       steps:
         - checkout: none
-        - task: AzureKeyVault@2
-          inputs:
-            azureSubscription: 'Azure subscription 1 (719fe311-ca1e-4675-8a98-c6f220a88cbc)'
-            KeyVaultName: 'secrets'
-            SecretsFilter: '*'
-            RunAsPreJob: true
         - script: |
             docker pull $(dockerImage)
             case "${{ parameters.deployAction }}" in
@@ -115,4 +103,3 @@ stages:
                 ;;
             esac
           displayName: "Perform Docker deployment"
-
