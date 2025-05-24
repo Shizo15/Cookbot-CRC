@@ -63,7 +63,7 @@ stages:
       steps:
         - checkout: self
         - script: |
-            docker build -t $(dockerImage) -f src/Dockerfile src/
+            docker build -t $(dockerImage) -f src/Dockerfile .
           displayName: 'Build Docker image'
         - script: |
             docker login -u $(dockerhub-username) -p $(dockerhub-password)
