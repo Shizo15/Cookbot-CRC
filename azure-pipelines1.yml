@@ -46,7 +46,7 @@ stages:
           displayName: 'Install test dependencies'
         - script: |
             source venv/bin/activate
-            pytest tests --cov=src
+            pytest -v tests --cov=src
           displayName: 'Run tests'
         - script: |
             source venv/bin/activate
