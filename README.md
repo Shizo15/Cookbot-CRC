@@ -186,7 +186,7 @@ CMD ["python", "src/main.py"]
 ```
 #### Budowanie obrazu
 ```bash
-docker build --no-cache -f src/Dockerfile -t NAZWA .   
+docker build -f src/Dockerfile -t NAZWA .   
 ```
 
 #### Uruchamianie kontenera
